@@ -1,0 +1,70 @@
+{
+  "name": "vscode-mcp-tool-demo",
+  "displayName": "MCP Tool Demo",
+  "description": "Minimal example: expose a Python MCP tool to VS Code LLMs",
+  "version": "0.0.1",
+  "publisher": "Ivan Sanchez",
+  "engines": {
+    "vscode": "^1.92.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "type": "module",
+  "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "MCP Tool Demo",
+      "properties": {
+        "mcpDemo.pythonPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Absolute path to the Python interpreter to run the MCP server. If empty, uses `$MCP_PYTHON` or `python3`."
+        },
+        "mcpDemo.serverPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Absolute path to the Python MCP server script. If empty, defaults to `${workspaceFolder}/python_server/server.py`."
+        }
+      }
+    },
+    "languageModelTools": [
+      {
+        "name": "mcp-greet",
+  "toolReferenceName": "mcp-greet",
+        "displayName": "MCP Greet",
+        "modelDescription": "Call the Python MCP server greet tool",
+        "tags": ["mcp", "demo"],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Name to greet"
+            }
+          },
+          "required": ["name"]
+        },
+        "canBeReferencedInPrompt": true
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "@types/vscode": "^1.92.0",
+    "eslint": "^9.6.0",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.3"
+  }
+}

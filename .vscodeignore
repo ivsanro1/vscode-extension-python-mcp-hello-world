@@ -1,0 +1,7 @@
+**/*.ts
+**/*.map
+src/**
+node_modules/**
+!dist/**
+!python_server/**
+README.md
