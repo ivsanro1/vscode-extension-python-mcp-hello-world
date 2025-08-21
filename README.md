@@ -1,10 +1,12 @@
-# VS Code extension - MCP Tool Demo
+# VS Code extension - MCP Tool Demo (+ MCP Sampling)
 
 This repo is a minimal VS Code extension that shows how to expose a local MCP server launched with the extension, by using `lm.registerTool`.
 
 MCP is implemented as a Python MCP server (FastMCP) communicating over stdio.
 
 This has been tested only for VSCode Insiders `1.104.0`, which has the new `lm.registerTool` API.
+
+There's also an example of how to do MCP sampling (story tool), to make a completion in MCP server using local LLM from the client VSCode.
 
 
 # Screenshots
@@ -42,3 +44,13 @@ npm run build
 1) Open this folder in VS Code, press F5 to launch an Extension Development Host.
 2) Ensure a Python interpreter with MCP is available
 3) Use the tool in Chat or inline chat (you can just ask the agent to explicitly greet you and your name)
+
+## Also: Story tool via MCP Sampling
+- There is also an MCP tool that uses MCP Sampling to generate a short story on demand. The Python server exposes `generate_story(topic, style)`, and the extension fulfills sampling by delegating to the VS Code chat model (e.g., Copilot).
+- Try in chat:
+
+```text
+Tell me a touching story about Randy Orton and John Cena becoming best friends. Use MCP
+```
+
+If you do not provide inputs, sensible defaults are used.

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
+import { z } from 'zod';
 
 let extensionServerPath: string | null = null;
 
@@ -42,18 +43,23 @@ class McpClientManager {
     if (!fs.existsSync(serverPath)) {
       throw new Error(`Server file not found at ${serverPath}`);
     }
-    const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
-    const transport = new StdioClientTransport({ command: python, args: [serverPath, 'stdio'] });
-    const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
-    const client = new Client({ name: 'vscode-mcp-tool-demo', version: '0.0.1' });
+  const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
+  const transport = new StdioClientTransport({ command: python, args: [serverPath, 'stdio'] });
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const client = new Client({ name: 'vscode-mcp-tool-demo', version: '0.0.1', enforceStrictCapabilities: true, debouncedNotificationMethods: ['notifications/roots/list_changed'] });
+  // Advertise sampling capability so server can ask us to create messages
+  client.registerCapabilities({ sampling: {} });
     try {
       this.output.appendLine(`Starting MCP server:`);
       this.output.appendLine(`  Python: ${python}`);
       this.output.appendLine(`  Script: ${serverPath} (stdio)`);
-      await client.connect(transport);
+  await client.connect(transport);
+  // Install sampling handler to fulfill server sampling via VS Code LM
+  await this.installSamplingHandler(client);
       const tools = await client.listTools();
-      const hasGreet = tools.tools.some((t: any) => t.name === 'greet');
-      if (!hasGreet) throw new Error('MCP server did not expose a "greet" tool.');
+  const names = new Set<string>(tools.tools.map((t: any) => t.name));
+  if (!names.has('greet')) throw new Error('MCP server did not expose a "greet" tool.');
+  if (!names.has('generate_story')) this.output.appendLine('Warning: no generate_story tool found.');
       this.client = client;
       this.output.appendLine('MCP server connected.');
     } catch (err: any) {
@@ -63,6 +69,47 @@ class McpClientManager {
       this.output.appendLine(`Failed to start MCP server: ${msg}`);
       throw new Error(`${msg} ${hint}`);
     }
+  }
+
+  private async installSamplingHandler(client: any) {
+  // Define minimal schemas inline to register handler without importing SDK internals
+  const TextContentSchema = z.object({ type: z.literal('text'), text: z.string() });
+  const SamplingMessageSchema = z.object({ role: z.enum(['user', 'assistant']), content: TextContentSchema });
+  const CreateMessageRequestSchema = z.object({ method: z.literal('sampling/createMessage'), params: z.object({ messages: z.array(SamplingMessageSchema), max_tokens: z.number().optional(), _meta: z.any().optional() }).passthrough() });
+  const CreateMessageResultSchema = z.object({ role: z.literal('assistant'), content: TextContentSchema, model: z.string().optional(), stopReason: z.string().optional() });
+    // Ensure no duplicate
+    try { client.assertCanSetRequestHandler('sampling/createMessage'); } catch {}
+  client.setRequestHandler(CreateMessageRequestSchema as any, async (req: any): Promise<any> => {
+      const messages = req.params.messages || [];
+      // Build VS Code chat messages
+      const chatMessages: vscode.LanguageModelChatMessage[] = [];
+      for (const m of messages) {
+        if (m.role === 'user' && m.content?.type === 'text') {
+          chatMessages.push(vscode.LanguageModelChatMessage.User([new vscode.LanguageModelTextPart(m.content.text)]));
+        } else if (m.role === 'assistant' && m.content?.type === 'text') {
+          chatMessages.push(vscode.LanguageModelChatMessage.Assistant([new vscode.LanguageModelTextPart(m.content.text)]));
+        }
+      }
+      const [model] = await vscode.lm.selectChatModels({
+        vendor: 'copilot',
+      });
+      if (!model) {
+        throw new Error('No VS Code chat model available for sampling.');
+      }
+      const resp = await model.sendRequest(chatMessages, { toolMode: vscode.LanguageModelChatToolMode.Auto });
+      let text = '';
+      for await (const part of resp.stream) {
+        if (part instanceof vscode.LanguageModelTextPart) {
+          text += part.value;
+        }
+      }
+  return CreateMessageResultSchema.parse({
+        role: 'assistant',
+        content: { type: 'text', text },
+        model: model.id,
+        stopReason: 'endTurn',
+      });
+    });
   }
 
   async stop(): Promise<void> {
@@ -91,6 +138,13 @@ class McpClientManager {
       throw err;
     }
   }
+
+  async generateStory(topic: string, style: string): Promise<string> {
+    await this.start();
+    const result: any = await this.client!.callTool({ name: 'generate_story', arguments: { topic, style } });
+    const textPart = (result.content as any[]).find((p: any) => p.type === 'text') as { type: string; text: string } | undefined;
+    return textPart?.text ?? JSON.stringify(result.structuredContent ?? result.content);
+  }
 }
 
 let manager: McpClientManager | null = null;
@@ -106,6 +160,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
   const disposable = vscode.lm.registerTool<{ name: string }>('mcp-greet', {
     async invoke(options: vscode.LanguageModelToolInvocationOptions<{ name: string }>, token: vscode.CancellationToken) {
+      if (token.isCancellationRequested) {
+        // Respect cancellation early
+        return new vscode.LanguageModelToolResult([]);
+      }
       const name = (options.input as any)?.name ?? 'World';
       const text = await manager!.greet(name);
       return new vscode.LanguageModelToolResult([
@@ -113,12 +171,34 @@ export async function activate(context: vscode.ExtensionContext) {
       ]);
     },
     async prepareInvocation(options: vscode.LanguageModelToolInvocationPrepareOptions<{ name: string }>, token: vscode.CancellationToken): Promise<vscode.PreparedToolInvocation> {
+      if (token.isCancellationRequested) {
+        return { progressMessage: 'Cancelling greet…' } as vscode.PreparedToolInvocation;
+      }
       const name = (options.input as any)?.name ?? 'World';
       return { progressMessage: `Greeting ${name} via MCP...` } as vscode.PreparedToolInvocation;
     }
   });
 
-  context.subscriptions.push(disposable);
+  const storyTool = vscode.lm.registerTool<{ topic?: string; style?: string }>('mcp-story', {
+    async invoke(options: vscode.LanguageModelToolInvocationOptions<{ topic?: string; style?: string }>, token: vscode.CancellationToken) {
+      if (token.isCancellationRequested) {
+        return new vscode.LanguageModelToolResult([]);
+      }
+      const topic = (options.input as any)?.topic ?? 'a curious developer learning MCP';
+      const style = (options.input as any)?.style ?? 'concise';
+      const text = await manager!.generateStory(topic, style);
+      return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(text)]);
+    },
+    async prepareInvocation(options: vscode.LanguageModelToolInvocationPrepareOptions<{ topic?: string; style?: string }>, token: vscode.CancellationToken) {
+      if (token.isCancellationRequested) {
+        return { progressMessage: 'Cancelling story…' } as vscode.PreparedToolInvocation;
+      }
+      const topic = (options.input as any)?.topic ?? 'a curious developer learning MCP';
+      return { progressMessage: `Generating short story about ${topic}...` } as vscode.PreparedToolInvocation;
+    }
+  });
+
+  context.subscriptions.push(disposable, storyTool);
 }
 
 export async function deactivate() {

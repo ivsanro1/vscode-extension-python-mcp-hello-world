@@ -50,6 +50,22 @@
         },
         "canBeReferencedInPrompt": true
       }
+      ,
+      {
+        "name": "mcp-story",
+        "toolReferenceName": "mcp-story",
+        "displayName": "MCP Story",
+        "modelDescription": "Generate a short story via MCP sampling",
+        "tags": ["mcp", "story"],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "topic": { "type": "string", "description": "Story topic" },
+            "style": { "type": "string", "description": "Writing style (e.g., concise, whimsical)" }
+          }
+        },
+        "canBeReferencedInPrompt": true
+      }
     ]
   },
   "scripts": {
@@ -65,6 +81,7 @@
     "typescript": "^5.4.0"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.17.3"
+  "@modelcontextprotocol/sdk": "^1.17.3",
+  "zod": "^3.23.8"
   }
 }
