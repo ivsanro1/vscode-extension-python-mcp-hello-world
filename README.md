@@ -1,6 +1,10 @@
-# MCP Tool Demo (VS Code)
+# VS Code extension - MCP Tool Demo
 
-This repo contains a minimal VS Code extension that exposes a Language Model tool backed by a Python MCP server (FastMCP) communicating over stdio.
+This repo is a minimal VS Code extension that shows how to expose a local MCP server launched with the extension, by using `lm.registerTool`.
+
+MCP is implemented as a Python MCP server (FastMCP) communicating over stdio.
+
+This has been tested only for VSCode Insiders `1.104.0`, which has the new `lm.registerTool` API.
 
 
 # Screenshots
