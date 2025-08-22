@@ -177,3 +177,59 @@ Config examples (`settings.json`):
 Leave `mcpDemo.samplingModel` empty to allow dynamic server hints or family ordering. Set it to force a consistent model regardless of server hints. The first available family in the list is chosen.
 
 ````
+
+## Testing
+
+The repository includes a lightweight Python test for the MCP server's `query_html` tool so you can validate behavior without launching the VS Code extension.
+
+### What the Test Does
+- Imports the server module (`python_server/server.py`).
+- Fakes the sampling call by providing a dummy session object whose `create_message` returns a fabricated model answer containing the expected price.
+- Invokes `query_html` with `examples/product.html` and asserts that the output string includes `149.99` (the product price present in the HTML) and does not echo raw HTML.
+
+### Rationale
+Real sampling would require a live VS Code model runtime or network model. Mocking keeps the test deterministic, fast, and CI-friendly while still exercising file reading and tool logic paths.
+
+### Dependencies
+Install dev dependencies inside your virtual environment:
+```bash
+pip install "mcp[cli]" pytest pytest-asyncio
+```
+Or install from the consolidated dev requirements file:
+```bash
+pip install -r requirements-dev.txt
+```
+
+### Run Tests
+```bash
+python -m pytest -q
+```
+Or run a single test with verbose output:
+```bash
+python -m pytest -k test_query_html_price_extracted -vv -s
+```
+
+#### Combined (Build + Python Unit + Integration)
+You can now run all test layers (TypeScript build, Python unit tests, Node integration test) via:
+```bash
+npm test
+```
+This executes, in order:
+1. `npm run build` (TypeScript compile)
+2. `pytest -q` (Python unit tests: mocked sampling)
+3. `node tests/integration/query_html_integration.test.mjs` (stdIO MCP integration: mocked sampling handler in JS)
+
+Individual scripts:
+```bash
+npm run test:python       # Python tests only
+npm run test:integration  # Integration test only
+```
+
+Warnings you may see about `asyncio` marks indicate optional plugins; current tests mock sampling and are safe.
+
+
+### Future Enhancements (Optional)
+- Add a mock test for the story tool (simulate different sampling messages).
+- Snapshot test for selector mapping prompts.
+- CI workflow (GitHub Actions) to run tests on push.
+

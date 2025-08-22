@@ -100,7 +100,10 @@
     "vscode:prepublish": "npm run build",
     "build": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "lint": "eslint src --ext ts"
+  "lint": "eslint src --ext ts",
+  "test:python": "pytest -q",
+  "test:integration": "node tests/integration/query_html_integration.test.mjs",
+  "test": "npm run build && npm run test:python && npm run test:integration"
   },
   "devDependencies": {
     "@types/node": "^20.11.30",
