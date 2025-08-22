@@ -28,6 +28,17 @@
           "type": "string",
           "default": "",
           "markdownDescription": "Absolute path to the Python MCP server script. If empty, defaults to `${workspaceFolder}/python_server/server.py`."
+        },
+        "mcpDemo.samplingModel": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Optional explicit language model id to use for MCP sampling requests. If empty, the extension will pick based on server meta preferences, preferred families, or default vendor selection."
+        },
+        "mcpDemo.preferredFamilies": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["gpt-5", "gemini-2.5-pro", "gpt-4.1", "gpt-4o", "o3", "gpt-4.1-mini"],
+          "markdownDescription": "Ordered list of model families to attempt for sampling when no explicit model id is chosen. Server _meta.preferredFamilies overrides this if provided."
         }
       }
     },
@@ -63,6 +74,23 @@
             "topic": { "type": "string", "description": "Story topic" },
             "style": { "type": "string", "description": "Writing style (e.g., concise, whimsical)" }
           }
+        },
+        "canBeReferencedInPrompt": true
+      }
+      ,
+      {
+        "name": "mcp-query-html",
+        "toolReferenceName": "mcp-query-html",
+        "displayName": "MCP Query HTML",
+        "modelDescription": "Answer questions about a local HTML file (provide html_path and query)",
+        "tags": ["mcp", "html", "scraping"],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "html_path": { "type": "string", "description": "Absolute or workspace-relative path to HTML file" },
+            "query": { "type": "string", "description": "Question or instruction about the HTML content" }
+          },
+          "required": ["html_path", "query"]
         },
         "canBeReferencedInPrompt": true
       }
